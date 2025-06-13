@@ -210,11 +210,6 @@ Instructions:
 def get_chatbot():
     return VinothPortfolioChatbot()
 
-def set_cors_headers():
-    """Set CORS headers for cross-origin requests"""
-    # This doesn't work directly in Streamlit, but we'll handle it differently
-    pass
-
 def main():
     # Page configuration
     st.set_page_config(
@@ -223,7 +218,7 @@ def main():
         layout="wide"
     )
     
-    # Custom CSS to hide Streamlit UI elements and add CORS simulation
+    # Custom CSS to hide Streamlit UI elements
     hide_streamlit_style = """
     <style>
     #MainMenu {visibility: hidden;}
@@ -231,9 +226,6 @@ def main():
     header {visibility: hidden;}
     .stDeployButton {display:none;}
     .stDecoration {display:none;}
-    .main > div {
-        padding-top: 1rem;
-    }
     </style>
     """
     st.markdown(hide_streamlit_style, unsafe_allow_html=True)
@@ -241,214 +233,56 @@ def main():
     # Initialize chatbot
     chatbot = get_chatbot()
     
-    # Get URL parameters
-    url_params = st.query_params
-    
-    # Health check endpoint
-    if url_params.get("endpoint") == "health":
-        st.markdown("""
-        <script>
-        // Set CORS headers simulation
-        console.log('Health check accessed');
-        </script>
-        """, unsafe_allow_html=True)
-        
-        health_data = {
-            "status": "healthy", 
-            "timestamp": datetime.now().isoformat(),
-            "service": "Portfolio Chatbot API",
-            "version": "1.0.0"
-        }
-        st.json(health_data)
-        st.success("✅ Backend is running and healthy!")
+    # API endpoint for health check
+    if st.query_params.get("endpoint") == "health":
+        st.json({"status": "healthy", "timestamp": datetime.now().isoformat()})
         return
     
-    # Chat endpoint
-    elif url_params.get("endpoint") == "chat":
-        st.markdown("""
-        <script>
-        // Set CORS headers simulation
-        console.log('Chat endpoint accessed');
-        </script>
-        """, unsafe_allow_html=True)
-        
-        user_message = url_params.get("message", "").strip()
-        
-        if user_message:
-            try:
+    # API endpoint for chat
+    if st.query_params.get("endpoint") == "chat":
+        # Handle POST request simulation
+        if "message" in st.query_params:
+            user_message = st.query_params["message"]
+            if user_message:
                 response = chatbot.call_nvidia_api(user_message)
-                chat_response = {
-                    "response": response, 
-                    "timestamp": datetime.now().isoformat(),
-                    "status": "success"
-                }
-                st.json(chat_response)
-                st.success(f"✅ Response generated for: '{user_message}'")
-                
-            except Exception as e:
-                error_response = {
-                    "error": f"Failed to process message: {str(e)}", 
-                    "timestamp": datetime.now().isoformat(),
-                    "status": "error"
-                }
-                st.json(error_response)
-                st.error(f"❌ Error processing message: {str(e)}")
+                st.json({"response": response, "timestamp": datetime.now().isoformat()})
+            else:
+                st.json({"error": "Message parameter is required"})
         else:
-            error_response = {
-                "error": "Message parameter is required and cannot be empty", 
-                "timestamp": datetime.now().isoformat(),
-                "status": "error"
-            }
-            st.json(error_response)
-            st.error("❌ Message parameter is required")
+            st.json({"error": "Message parameter is required"})
         return
     
-    # Default page - API documentation and testing interface
+    # Default page - API documentation
     st.title("🤖 Vinoth Kumar - Portfolio Chatbot API")
-    st.write("**Status:** ✅ API is running and ready to serve requests")
+    st.write("This is the backend API for Vinoth Kumar's portfolio chatbot.")
     
-    # Connection status
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("API Status", "🟢 Online", "Healthy")
-    with col2:
-        nvidia_key_status = "✅ Configured" if os.getenv('NVIDIA_API_KEY') else "❌ Missing"
-        st.metric("NVIDIA API", nvidia_key_status.split(" ")[1], nvidia_key_status.split(" ")[0])
-    with col3:
-        st.metric("Uptime", "100%", "0 errors")
+    st.subheader("Available Endpoints:")
+    st.code("""
+    GET /?endpoint=health
+    - Returns API health status
     
-    st.divider()
+    GET /?endpoint=chat&message=YOUR_MESSAGE
+    - Returns chatbot response for the given message
+    """)
     
-    # API Documentation
-    st.subheader("📚 API Endpoints")
+    st.subheader("Test the Chatbot:")
     
-    col1, col2 = st.columns(2)
+    # Test interface
+    test_message = st.text_input("Enter a test message:")
+    if st.button("Send Test Message") and test_message:
+        with st.spinner("Getting response..."):
+            response = chatbot.call_nvidia_api(test_message)
+            st.success("Response:")
+            st.write(response)
     
-    with col1:
-        st.markdown("### Health Check")
-        st.code("GET /?endpoint=health", language="bash")
-        st.write("Returns API health status and system information")
-        
-        if st.button("🩺 Test Health Check", key="health_test"):
-            try:
-                import requests
-                response = requests.get(f"{st.secrets.get('app_url', 'http://localhost:8501')}/?endpoint=health", timeout=10)
-                st.success("✅ Health check successful!")
-                st.json(response.json() if response.headers.get('content-type') == 'application/json' else {"status": "ok"})
-            except Exception as e:
-                st.error(f"❌ Health check failed: {str(e)}")
+    # Environment check
+    st.subheader("Configuration Status:")
+    nvidia_key_status = "✅ Configured" if os.getenv('NVIDIA_API_KEY') else "❌ Missing"
+    st.write(f"NVIDIA API Key: {nvidia_key_status}")
     
-    with col2:
-        st.markdown("### Chat API")
-        st.code("GET /?endpoint=chat&message=YOUR_MESSAGE", language="bash")
-        st.write("Returns chatbot response for the given message")
-        
-        if st.button("💬 Test Chat API", key="chat_test"):
-            test_msg = "Tell me about your skills"
-            try:
-                response = chatbot.call_nvidia_api(test_msg)
-                st.success("✅ Chat API working!")
-                st.write("**Response:**", response)
-            except Exception as e:
-                st.error(f"❌ Chat API error: {str(e)}")
-    
-    st.divider()
-    
-    # Interactive Testing
-    st.subheader("🧪 Interactive API Testing")
-    
-    with st.container():
-        test_message = st.text_input("Enter a test message:", placeholder="e.g., What are your skills?", key="test_input")
-        
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            test_button = st.button("🚀 Send Test Message", disabled=not test_message.strip())
-        
-        if test_button and test_message.strip():
-            with st.spinner("🤖 Processing your message..."):
-                try:
-                    response = chatbot.call_nvidia_api(test_message)
-                    st.success("✅ **Response received:**")
-                    st.write(response)
-                    
-                    # Show API response format
-                    with st.expander("📋 View API Response Format"):
-                        api_response = {
-                            "response": response,
-                            "timestamp": datetime.now().isoformat(),
-                            "status": "success"
-                        }
-                        st.json(api_response)
-                        
-                except Exception as e:
-                    st.error(f"❌ **Error:** {str(e)}")
-                    # Show error response format
-                    with st.expander("📋 View Error Response Format"):
-                        error_response = {
-                            "error": str(e),
-                            "timestamp": datetime.now().isoformat(),
-                            "status": "error"
-                        }
-                        st.json(error_response)
-    
-    st.divider()
-    
-    # Configuration Status
-    st.subheader("⚙️ Configuration Status")
-    
-    config_col1, config_col2 = st.columns(2)
-    
-    with config_col1:
-        nvidia_key_status = "✅ Configured" if os.getenv('NVIDIA_API_KEY') else "❌ Missing"
-        st.write(f"**NVIDIA API Key:** {nvidia_key_status}")
-        
-        if not os.getenv('NVIDIA_API_KEY'):
-            st.warning("⚠️ NVIDIA_API_KEY environment variable is not set. The chatbot will use fallback responses.")
-    
-    with config_col2:
-        st.write("**App URL:** https://portfolio-chatbot-backend-npj49qbjgkzknusu7ur5gp.streamlit.app")
-        st.write("**Last Updated:** " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    
-    # Setup Instructions
-    with st.expander("🔧 Setup Instructions"):
-        st.markdown("""
-        ### For Frontend Integration:
-        
-        1. **Health Check URL:**
-           ```
-           https://portfolio-chatbot-backend-npj49qbjgkzknusu7ur5gp.streamlit.app/?endpoint=health
-           ```
-        
-        2. **Chat API URL:**
-           ```
-           https://portfolio-chatbot-backend-npj49qbjgkzknusu7ur5gp.streamlit.app/?endpoint=chat&message=YOUR_MESSAGE
-           ```
-        
-        3. **CORS Handling:**
-           - The API handles cross-origin requests
-           - No special headers required for GET requests
-           - Error responses include proper status codes
-        
-        4. **Rate Limiting:**
-           - No current rate limits
-           - Timeout: 30 seconds for NVIDIA API calls
-           - Fallback responses when API is unavailable
-        """)
-    
-    # Debug Information
-    if st.checkbox("🐛 Show Debug Information"):
-        st.subheader("Debug Information")
-        debug_info = {
-            "streamlit_version": st.__version__,
-            "python_version": "3.x",
-            "current_time": datetime.now().isoformat(),
-            "environment_variables": {
-                "NVIDIA_API_KEY": "Set" if os.getenv('NVIDIA_API_KEY') else "Not Set",
-            },
-            "query_params": dict(st.query_params),
-            "session_state": dict(st.session_state)
-        }
-        st.json(debug_info)
+    if not os.getenv('NVIDIA_API_KEY'):
+        st.warning("⚠️ NVIDIA_API_KEY environment variable is not set. The chatbot will use fallback responses.")
+        st.info("To set up the API key:\n1. Go to Streamlit Cloud settings\n2. Add NVIDIA_API_KEY to secrets\n3. Redeploy the app")
 
 if __name__ == "__main__":
     main()
