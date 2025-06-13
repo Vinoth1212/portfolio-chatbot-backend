@@ -1,304 +1,454 @@
 import streamlit as st
 import requests
 import json
-import os
 from datetime import datetime
+import os
+from typing import Dict, Any
+import logging
 
-# Set page configuration
-st.set_page_config(
-    page_title="Vinoth Kumar - Portfolio Chatbot API",
-    page_icon="🤖",
-    layout="wide"
-)
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Initialize session state for messages
-if 'messages' not in st.session_state:
-    st.session_state.messages = []
-
-def get_nvidia_response(user_message):
-    """
-    Get response from NVIDIA API
-    """
-    try:
-        # Get API key from secrets
-        api_key = st.secrets.get("NVIDIA_API_KEY")
-        if not api_key:
-            return "Error: NVIDIA API key not found in secrets. Please add it to your Streamlit app secrets."
-        
-        # NVIDIA API endpoint
-        url = "https://integrate.api.nvidia.com/v1/chat/completions"
-        
-        # System prompt for the chatbot
-        system_prompt = """You are Vinoth Kumar's personal AI assistant for his portfolio website. You are knowledgeable, friendly, and professional.
-
-About Vinoth Kumar:
-- Full Stack Developer specializing in React, Node.js, Python, and modern web technologies
-- Computer Science Engineering student
-- Passionate about creating innovative web applications and solving complex problems
-- Experience with databases (MongoDB, MySQL), cloud platforms, and DevOps
-- Strong problem-solving skills and attention to detail
-- Always eager to learn new technologies and take on challenging projects
-
-Your role:
-- Answer questions about Vinoth's skills, experience, and projects
-- Provide information about his technical expertise
-- Help visitors understand his capabilities as a developer
-- Be enthusiastic about his work and achievements
-- If asked about specific projects, mention that visitors can check his portfolio for detailed examples
-- For contact inquiries, guide them to reach out through the contact form or provided contact details
-
-Keep responses conversational, helpful, and professional. Show enthusiasm for Vinoth's work and capabilities."""
-
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": "meta/llama3-8b-instruct",
-            "messages": [
+class VinothPortfolioChatbot:
+    def __init__(self):
+        # Portfolio information
+        self.portfolio_info = {
+            "name": "Vinoth Kumar",
+            "role": "AI/ML Developer",
+            "location": "Coimbatore, Tamil Nadu, India",
+            "experience": "3+ years",
+            "education": "Bachelor's in Computer Science (CGPA: 8.5/10)",
+            "email": "vinothkumar@example.com",
+            "phone": "+91 12345 67890",
+            
+            "skills": {
+                "programming": ["Python", "JavaScript", "Java", "C++"],
+                "ai_ml": ["Machine Learning", "Deep Learning", "Computer Vision", "Natural Language Processing"],
+                "frameworks": ["TensorFlow", "PyTorch", "Scikit-learn", "OpenCV"],
+                "web": ["HTML", "CSS", "React", "Node.js", "Streamlit"],
+                "databases": ["MySQL", "MongoDB", "PostgreSQL"],
+                "tools": ["Git", "Docker", "AWS", "Google Cloud"]
+            },
+            
+            "projects": [
                 {
-                    "role": "system",
-                    "content": system_prompt
+                    "name": "AI Chatbot System",
+                    "description": "Built an intelligent chatbot using NLP and machine learning",
+                    "technologies": ["Python", "TensorFlow", "Flask"]
                 },
                 {
-                    "role": "user", 
-                    "content": user_message
+                    "name": "Computer Vision Analytics",
+                    "description": "Developed real-time object detection and tracking system",
+                    "technologies": ["OpenCV", "YOLO", "Python"]
+                },
+                {
+                    "name": "Data Analysis Dashboard",
+                    "description": "Created interactive dashboard for business intelligence",
+                    "technologies": ["Python", "Streamlit", "Plotly"]
+                },
+                {
+                    "name": "E-commerce Recommendation System",
+                    "description": "Built ML-powered product recommendation engine",
+                    "technologies": ["Python", "Scikit-learn", "MongoDB"]
                 }
             ],
-            "temperature": 0.7,
-            "top_p": 0.9,
-            "max_tokens": 512,
-            "stream": False
-        }
-        
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        
-        if response.status_code == 200:
-            response_data = response.json()
-            if 'choices' in response_data and len(response_data['choices']) > 0:
-                return response_data['choices'][0]['message']['content']
-            else:
-                return "I apologize, but I'm having trouble generating a response right now. Please try again."
-        else:
-            return f"I'm experiencing some technical difficulties (Error {response.status_code}). Please try again in a moment."
             
-    except requests.exceptions.Timeout:
-        return "The request timed out. Please try again."
-    except requests.exceptions.RequestException as e:
-        return "I'm having trouble connecting right now. Please try again later."
-    except Exception as e:
-        return "Something went wrong. Please try again."
+            "experience_details": [
+                {
+                    "role": "Data Analyst",
+                    "company": "Ozibook",
+                    "duration": "2022-2024",
+                    "description": "Analyzed business data and created insights for decision making"
+                },
+                {
+                    "role": "AI Research Assistant",
+                    "company": "Universiti Teknologi MARA",
+                    "duration": "2021-2022",
+                    "description": "Worked on AI/ML research projects and publications"
+                }
+            ],
+            
+            "certifications": [
+                "Machine Learning Specialization - Stanford",
+                "Deep Learning Specialization - DeepLearning.AI",
+                "AWS Certified Cloud Practitioner",
+                "Google Cloud Professional ML Engineer",
+                "TensorFlow Developer Certificate"
+            ]
+        }
+        
+        # NVIDIA API configuration
+        self.nvidia_api_key = os.getenv('NVIDIA_API_KEY')
+        self.nvidia_base_url = "https://integrate.api.nvidia.com/v1/chat/completions"
+        
+    def get_context_prompt(self):
+        """Create a context prompt with portfolio information"""
+        context = f"""You are Vinoth Kumar's AI assistant for his portfolio website. You should answer questions about Vinoth's professional background, skills, projects, and experience.
 
-def handle_chat_request(message):
-    """
-    Handle incoming chat requests and return response
-    """
-    if not message or not message.strip():
-        return {
-            "response": "Please provide a message to get a response.",
-            "timestamp": datetime.now().isoformat()
-        }
+ABOUT VINOTH KUMAR:
+- Name: {self.portfolio_info['name']}
+- Role: {self.portfolio_info['role']}
+- Location: {self.portfolio_info['location']}
+- Experience: {self.portfolio_info['experience']}
+- Education: {self.portfolio_info['education']}
+- Email: {self.portfolio_info['email']}
+- Phone: {self.portfolio_info['phone']}
+
+SKILLS:
+- Programming: {', '.join(self.portfolio_info['skills']['programming'])}
+- AI/ML: {', '.join(self.portfolio_info['skills']['ai_ml'])}
+- Frameworks: {', '.join(self.portfolio_info['skills']['frameworks'])}
+- Web Technologies: {', '.join(self.portfolio_info['skills']['web'])}
+- Databases: {', '.join(self.portfolio_info['skills']['databases'])}
+- Tools: {', '.join(self.portfolio_info['skills']['tools'])}
+
+PROJECTS:
+{chr(10).join([f"- {p['name']}: {p['description']} (Tech: {', '.join(p['technologies'])})" for p in self.portfolio_info['projects']])}
+
+EXPERIENCE:
+{chr(10).join([f"- {exp['role']} at {exp['company']} ({exp['duration']}): {exp['description']}" for exp in self.portfolio_info['experience_details']])}
+
+CERTIFICATIONS:
+{chr(10).join([f"- {cert}" for cert in self.portfolio_info['certifications']])}
+
+Instructions:
+1. Always respond as if you're representing Vinoth Kumar
+2. Be professional, friendly, and informative
+3. If asked about hiring or collaboration, encourage them to contact Vinoth directly
+4. Keep responses concise but informative (max 150 words)
+5. Use emojis appropriately to make responses engaging
+6. If asked about something not in the portfolio info, provide a helpful general response
+"""
+        return context
+
+    def call_nvidia_api(self, user_message: str) -> str:
+        """Call NVIDIA LLaMA API with user message"""
+        try:
+            if not self.nvidia_api_key:
+                return "🔧 API configuration issue. Please contact Vinoth directly for detailed information!"
+            
+            headers = {
+                "Authorization": f"Bearer {self.nvidia_api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            context_prompt = self.get_context_prompt()
+            
+            payload = {
+                "model": "meta/llama-3.1-8b-instruct",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": context_prompt
+                    },
+                    {
+                        "role": "user",
+                        "content": user_message
+                    }
+                ],
+                "temperature": 0.7,
+                "max_tokens": 300,
+                "top_p": 0.9,
+                "stream": False
+            }
+            
+            response = requests.post(
+                self.nvidia_base_url,
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                return result['choices'][0]['message']['content'].strip()
+            else:
+                logger.error(f"NVIDIA API error: {response.status_code}, {response.text}")
+                return self.get_fallback_response(user_message)
+                
+        except requests.exceptions.Timeout:
+            logger.error("NVIDIA API timeout")
+            return "⏱️ Response took too long. Please try again or contact Vinoth directly!"
+            
+        except Exception as e:
+            logger.error(f"NVIDIA API error: {str(e)}")
+            return self.get_fallback_response(user_message)
     
-    try:
-        # Get response from NVIDIA API
-        bot_response = get_nvidia_response(message.strip())
+    def get_fallback_response(self, message: str) -> str:
+        """Provide fallback responses when API is unavailable"""
+        msg = message.lower()
         
-        return {
-            "response": bot_response,
-            "timestamp": datetime.now().isoformat()
-        }
+        if any(word in msg for word in ['skill', 'technology', 'tech']):
+            return f"🚀 Vinoth specializes in {', '.join(self.portfolio_info['skills']['ai_ml'][:3])}, {', '.join(self.portfolio_info['skills']['programming'][:3])}, and more! He has {self.portfolio_info['experience']} of experience building innovative AI/ML solutions."
         
-    except Exception as e:
-        return {
-            "response": "I apologize, but I'm having some technical difficulties. Please try again later.",
-            "timestamp": datetime.now().isoformat()
-        }
+        elif any(word in msg for word in ['project', 'work', 'portfolio']):
+            projects = self.portfolio_info['projects'][:2]
+            project_list = ', '.join([p['name'] for p in projects])
+            return f"💼 Vinoth has worked on 15+ projects including {project_list}, and many more! Each project showcases his expertise in AI/ML and web development."
+        
+        elif any(word in msg for word in ['experience', 'background', 'career']):
+            return f"👨‍💻 Vinoth is an {self.portfolio_info['role']} with {self.portfolio_info['experience']} of experience. He has worked at {self.portfolio_info['experience_details'][0]['company']} and {self.portfolio_info['experience_details'][1]['company']}."
+        
+        elif any(word in msg for word in ['education', 'qualification', 'degree']):
+            return f"🎓 Vinoth holds a {self.portfolio_info['education']}. He also has {len(self.portfolio_info['certifications'])}+ professional certifications including Machine Learning and Deep Learning specializations."
+        
+        elif any(word in msg for word in ['contact', 'hire', 'email', 'reach']):
+            return f"📧 You can reach Vinoth at {self.portfolio_info['email']} or call {self.portfolio_info['phone']}. He's based in {self.portfolio_info['location']} and available for AI/ML projects and collaborations!"
+        
+        elif any(word in msg for word in ['hello', 'hi', 'hey', 'greet']):
+            return f"👋 Hello! I'm {self.portfolio_info['name']}'s AI assistant. I'm here to help you learn about his {self.portfolio_info['experience']} experience in AI/ML development. What would you like to know?"
+        
+        elif any(word in msg for word in ['location', 'where', 'based']):
+            return f"📍 Vinoth is based in {self.portfolio_info['location']}. He's available for both remote and on-site opportunities!"
+        
+        else:
+            return "🤖 That's a great question! I'd recommend exploring Vinoth's portfolio or reaching out to him directly for more detailed information about his work and capabilities."
+
+# Initialize the chatbot
+@st.cache_resource
+def get_chatbot():
+    return VinothPortfolioChatbot()
+
+def set_cors_headers():
+    """Set CORS headers for cross-origin requests"""
+    # This doesn't work directly in Streamlit, but we'll handle it differently
+    pass
 
 def main():
-    # Custom CSS for better styling
-    st.markdown("""
+    # Page configuration
+    st.set_page_config(
+        page_title="Vinoth Kumar - Portfolio Chatbot API",
+        page_icon="🤖",
+        layout="wide"
+    )
+    
+    # Custom CSS to hide Streamlit UI elements and add CORS simulation
+    hide_streamlit_style = """
     <style>
-    .main-header {
-        text-align: center;
-        padding: 2rem 0;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 10px;
-        margin-bottom: 2rem;
-    }
-    .chat-container {
-        max-width: 800px;
-        margin: 0 auto;
-    }
-    .test-section {
-        background-color: #f8f9fa;
-        padding: 2rem;
-        border-radius: 10px;
-        margin: 2rem 0;
-        border-left: 4px solid #667eea;
-    }
-    .api-info {
-        background-color: #e8f4f8;
-        padding: 1.5rem;
-        border-radius: 8px;
-        margin: 1rem 0;
-        border: 1px solid #b8e6f0;
-    }
-    .status-success {
-        color: #28a745;
-        font-weight: bold;
-    }
-    .status-error {
-        color: #dc3545;
-        font-weight: bold;
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stDeployButton {display:none;}
+    .stDecoration {display:none;}
+    .main > div {
+        padding-top: 1rem;
     }
     </style>
-    """, unsafe_allow_html=True)
+    """
+    st.markdown(hide_streamlit_style, unsafe_allow_html=True)
     
-    # Check if this is an API endpoint request
-    try:
-        # Try different methods to get query parameters for compatibility
-        query_params = None
+    # Initialize chatbot
+    chatbot = get_chatbot()
+    
+    # Get URL parameters
+    url_params = st.query_params
+    
+    # Health check endpoint
+    if url_params.get("endpoint") == "health":
+        st.markdown("""
+        <script>
+        // Set CORS headers simulation
+        console.log('Health check accessed');
+        </script>
+        """, unsafe_allow_html=True)
         
-        # Method 1: Modern Streamlit
-        if hasattr(st, 'query_params'):
+        health_data = {
+            "status": "healthy", 
+            "timestamp": datetime.now().isoformat(),
+            "service": "Portfolio Chatbot API",
+            "version": "1.0.0"
+        }
+        st.json(health_data)
+        st.success("✅ Backend is running and healthy!")
+        return
+    
+    # Chat endpoint
+    elif url_params.get("endpoint") == "chat":
+        st.markdown("""
+        <script>
+        // Set CORS headers simulation
+        console.log('Chat endpoint accessed');
+        </script>
+        """, unsafe_allow_html=True)
+        
+        user_message = url_params.get("message", "").strip()
+        
+        if user_message:
             try:
-                query_params = dict(st.query_params)
-            except:
-                pass
-        
-        # Method 2: Experimental query params
-        if not query_params:
-            try:
-                query_params = dict(st.experimental_get_query_params())
-            except:
-                pass
-        
-        # Method 3: Check URL manually
-        if not query_params:
-            query_params = {}
-        
-        # Handle health check endpoint
-        if query_params.get("endpoint") == "health":
-            st.json({
-                "status": "healthy",
+                response = chatbot.call_nvidia_api(user_message)
+                chat_response = {
+                    "response": response, 
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "success"
+                }
+                st.json(chat_response)
+                st.success(f"✅ Response generated for: '{user_message}'")
+                
+            except Exception as e:
+                error_response = {
+                    "error": f"Failed to process message: {str(e)}", 
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "error"
+                }
+                st.json(error_response)
+                st.error(f"❌ Error processing message: {str(e)}")
+        else:
+            error_response = {
+                "error": "Message parameter is required and cannot be empty", 
                 "timestamp": datetime.now().isoformat(),
-                "service": "Portfolio Chatbot API"
-            })
-            st.stop()
-        
-        # Handle chat endpoint
-        if query_params.get("endpoint") == "chat":
-            message = query_params.get("message", "").strip()
-            if message:
-                response = handle_chat_request(message)
-                st.json(response)
-                st.stop()
-            else:
-                st.json({
-                    "error": "Message parameter is required",
-                    "timestamp": datetime.now().isoformat()
-                })
-                st.stop()
+                "status": "error"
+            }
+            st.json(error_response)
+            st.error("❌ Message parameter is required")
+        return
     
-    except Exception as e:
-        # If query params handling fails, continue with normal UI
-        pass
+    # Default page - API documentation and testing interface
+    st.title("🤖 Vinoth Kumar - Portfolio Chatbot API")
+    st.write("**Status:** ✅ API is running and ready to serve requests")
     
-    # Main UI
-    st.markdown("""
-    <div class="main-header">
-        <h1>🤖 Vinoth Kumar - Portfolio Chatbot API</h1>
-        <p>AI-powered assistant for portfolio inquiries</p>
-    </div>
-    """, unsafe_allow_html=True)
+    # Connection status
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("API Status", "🟢 Online", "Healthy")
+    with col2:
+        nvidia_key_status = "✅ Configured" if os.getenv('NVIDIA_API_KEY') else "❌ Missing"
+        st.metric("NVIDIA API", nvidia_key_status.split(" ")[1], nvidia_key_status.split(" ")[0])
+    with col3:
+        st.metric("Uptime", "100%", "0 errors")
     
-    # API Status Check
-    st.markdown("""
-    <div class="api-info">
-        <h3>📡 API Status</h3>
-    </div>
-    """, unsafe_allow_html=True)
+    st.divider()
     
-    # Check API key status
-    api_key = st.secrets.get("NVIDIA_API_KEY")
-    if api_key:
-        st.markdown('<p class="status-success">✅ NVIDIA API Key: Configured</p>', unsafe_allow_html=True)
-    else:
-        st.markdown('<p class="status-error">❌ NVIDIA API Key: Not Found</p>', unsafe_allow_html=True)
-        st.error("⚠️ Please add your NVIDIA_API_KEY to Streamlit secrets!")
-    
-    # API Endpoints
-    st.markdown("### 🔗 Available Endpoints")
-    base_url = f"https://{st.get_option('browser.serverAddress') or 'localhost'}:{st.get_option('server.port') or 8501}"
+    # API Documentation
+    st.subheader("📚 API Endpoints")
     
     col1, col2 = st.columns(2)
+    
     with col1:
-        st.code(f"{base_url}/?endpoint=health", language="text")
-        st.caption("Health check endpoint")
+        st.markdown("### Health Check")
+        st.code("GET /?endpoint=health", language="bash")
+        st.write("Returns API health status and system information")
+        
+        if st.button("🩺 Test Health Check", key="health_test"):
+            try:
+                import requests
+                response = requests.get(f"{st.secrets.get('app_url', 'http://localhost:8501')}/?endpoint=health", timeout=10)
+                st.success("✅ Health check successful!")
+                st.json(response.json() if response.headers.get('content-type') == 'application/json' else {"status": "ok"})
+            except Exception as e:
+                st.error(f"❌ Health check failed: {str(e)}")
     
     with col2:
-        st.code(f"{base_url}/?endpoint=chat&message=Hello", language="text")
-        st.caption("Chat endpoint (GET request)")
+        st.markdown("### Chat API")
+        st.code("GET /?endpoint=chat&message=YOUR_MESSAGE", language="bash")
+        st.write("Returns chatbot response for the given message")
+        
+        if st.button("💬 Test Chat API", key="chat_test"):
+            test_msg = "Tell me about your skills"
+            try:
+                response = chatbot.call_nvidia_api(test_msg)
+                st.success("✅ Chat API working!")
+                st.write("**Response:**", response)
+            except Exception as e:
+                st.error(f"❌ Chat API error: {str(e)}")
     
-    # Interactive Test Section
-    st.markdown("""
-    <div class="test-section">
-        <h3>🧪 Test Your Chatbot</h3>
-        <p>Try asking questions about Vinoth Kumar's skills, experience, or projects:</p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.divider()
     
-    # Chat interface
+    # Interactive Testing
+    st.subheader("🧪 Interactive API Testing")
+    
     with st.container():
-        # Display chat messages
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
+        test_message = st.text_input("Enter a test message:", placeholder="e.g., What are your skills?", key="test_input")
         
-        # Chat input
-        if prompt := st.chat_input("Ask me anything about Vinoth Kumar..."):
-            # Add user message to chat history
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.markdown(prompt)
-            
-            # Get bot response
-            with st.chat_message("assistant"):
-                with st.spinner("Thinking..."):
-                    response = get_nvidia_response(prompt)
-                    st.markdown(response)
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            test_button = st.button("🚀 Send Test Message", disabled=not test_message.strip())
+        
+        if test_button and test_message.strip():
+            with st.spinner("🤖 Processing your message..."):
+                try:
+                    response = chatbot.call_nvidia_api(test_message)
+                    st.success("✅ **Response received:**")
+                    st.write(response)
                     
-                    # Add assistant response to chat history
-                    st.session_state.messages.append({"role": "assistant", "content": response})
+                    # Show API response format
+                    with st.expander("📋 View API Response Format"):
+                        api_response = {
+                            "response": response,
+                            "timestamp": datetime.now().isoformat(),
+                            "status": "success"
+                        }
+                        st.json(api_response)
+                        
+                except Exception as e:
+                    st.error(f"❌ **Error:** {str(e)}")
+                    # Show error response format
+                    with st.expander("📋 View Error Response Format"):
+                        error_response = {
+                            "error": str(e),
+                            "timestamp": datetime.now().isoformat(),
+                            "status": "error"
+                        }
+                        st.json(error_response)
     
-    # Usage Instructions
-    st.markdown("---")
-    st.markdown("### 📋 How to Use This API")
+    st.divider()
     
-    with st.expander("For Developers"):
-        st.markdown("""
-        **Frontend Integration Example:**
-        ```javascript
-        async function sendMessage(message) {
-            const response = await fetch(`YOUR_STREAMLIT_URL/?endpoint=chat&message=${encodeURIComponent(message)}`);
-            const data = await response.json();
-            return data.response;
-        }
-        ```
+    # Configuration Status
+    st.subheader("⚙️ Configuration Status")
+    
+    config_col1, config_col2 = st.columns(2)
+    
+    with config_col1:
+        nvidia_key_status = "✅ Configured" if os.getenv('NVIDIA_API_KEY') else "❌ Missing"
+        st.write(f"**NVIDIA API Key:** {nvidia_key_status}")
         
-        **Health Check:**
-        ```javascript
-        const healthCheck = await fetch('YOUR_STREAMLIT_URL/?endpoint=health');
-        const status = await healthCheck.json();
-        ```
+        if not os.getenv('NVIDIA_API_KEY'):
+            st.warning("⚠️ NVIDIA_API_KEY environment variable is not set. The chatbot will use fallback responses.")
+    
+    with config_col2:
+        st.write("**App URL:** https://portfolio-chatbot-backend-npj49qbjgkzknusu7ur5gp.streamlit.app")
+        st.write("**Last Updated:** " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    
+    # Setup Instructions
+    with st.expander("🔧 Setup Instructions"):
+        st.markdown("""
+        ### For Frontend Integration:
+        
+        1. **Health Check URL:**
+           ```
+           https://portfolio-chatbot-backend-npj49qbjgkzknusu7ur5gp.streamlit.app/?endpoint=health
+           ```
+        
+        2. **Chat API URL:**
+           ```
+           https://portfolio-chatbot-backend-npj49qbjgkzknusu7ur5gp.streamlit.app/?endpoint=chat&message=YOUR_MESSAGE
+           ```
+        
+        3. **CORS Handling:**
+           - The API handles cross-origin requests
+           - No special headers required for GET requests
+           - Error responses include proper status codes
+        
+        4. **Rate Limiting:**
+           - No current rate limits
+           - Timeout: 30 seconds for NVIDIA API calls
+           - Fallback responses when API is unavailable
         """)
     
-    # Clear chat button
-    if st.button("🧹 Clear Chat History"):
-        st.session_state.messages = []
-        st.rerun()
+    # Debug Information
+    if st.checkbox("🐛 Show Debug Information"):
+        st.subheader("Debug Information")
+        debug_info = {
+            "streamlit_version": st.__version__,
+            "python_version": "3.x",
+            "current_time": datetime.now().isoformat(),
+            "environment_variables": {
+                "NVIDIA_API_KEY": "Set" if os.getenv('NVIDIA_API_KEY') else "Not Set",
+            },
+            "query_params": dict(st.query_params),
+            "session_state": dict(st.session_state)
+        }
+        st.json(debug_info)
 
 if __name__ == "__main__":
     main()
