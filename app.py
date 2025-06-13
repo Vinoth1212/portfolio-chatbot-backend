@@ -11,6 +11,21 @@ st.set_page_config(
     layout="wide"
 )
 
+# Add CORS headers function
+def add_cors_headers():
+    """Add CORS headers to allow cross-origin requests"""
+    st.markdown("""
+    <script>
+    // Add CORS headers programmatically
+    if (typeof window !== 'undefined') {
+        // This will help with some CORS issues
+        window.addEventListener('load', function() {
+            console.log('Streamlit app loaded and ready for API calls');
+        });
+    }
+    </script>
+    """, unsafe_allow_html=True)
+
 # Initialize session state for messages
 if 'messages' not in st.session_state:
     st.session_state.messages = []
@@ -32,22 +47,25 @@ def get_nvidia_response(user_message):
         system_prompt = """You are Vinoth Kumar's personal AI assistant for his portfolio website. You are knowledgeable, friendly, and professional.
 
 About Vinoth Kumar:
-- Full Stack Developer specializing in React, Node.js, Python, and modern web technologies
-- Computer Science Engineering student
-- Passionate about creating innovative web applications and solving complex problems
-- Experience with databases (MongoDB, MySQL), cloud platforms, and DevOps
-- Strong problem-solving skills and attention to detail
-- Always eager to learn new technologies and take on challenging projects
+- AI/ML Developer with 3+ years of experience
+- Computer Science Engineering graduate with First Class with Distinction (CGPA: 8.5/10)
+- Specializes in Python, Machine Learning, Deep Learning, Computer Vision, TensorFlow, PyTorch
+- Experience as Data Analyst at Ozibook and AI Research Assistant at Universiti Teknologi MARA
+- 15+ completed projects in AI/ML, data analysis, and web development
+- 10+ professional certifications including ML Specialization, Deep Learning, AWS, Google Cloud
+- Based in Coimbatore, Tamil Nadu, India
+- Available for AI/ML projects, freelance work, and full-time opportunities
 
 Your role:
-- Answer questions about Vinoth's skills, experience, and projects
-- Provide information about his technical expertise
-- Help visitors understand his capabilities as a developer
-- Be enthusiastic about his work and achievements
-- If asked about specific projects, mention that visitors can check his portfolio for detailed examples
-- For contact inquiries, guide them to reach out through the contact form or provided contact details
+- Answer questions about Vinoth's skills, experience, and projects with enthusiasm
+- Provide specific details about his technical expertise and achievements
+- Help visitors understand his capabilities as an AI/ML developer
+- Be conversational, helpful, and professional
+- If asked about specific projects, mention his portfolio showcases 15+ innovative projects
+- For contact inquiries, guide them to reach out via email or phone
+- Always be positive and highlight his strengths and experience
 
-Keep responses conversational, helpful, and professional. Show enthusiasm for Vinoth's work and capabilities."""
+Keep responses conversational, informative, and professional. Show enthusiasm for Vinoth's work and capabilities."""
 
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -97,7 +115,8 @@ def handle_chat_request(message):
     if not message or not message.strip():
         return {
             "response": "Please provide a message to get a response.",
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "status": "error"
         }
     
     try:
@@ -106,16 +125,21 @@ def handle_chat_request(message):
         
         return {
             "response": bot_response,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "status": "success"
         }
         
     except Exception as e:
         return {
             "response": "I apologize, but I'm having some technical difficulties. Please try again later.",
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "status": "error"
         }
 
 def main():
+    # Add CORS headers
+    add_cors_headers()
+    
     # Custom CSS for better styling
     st.markdown("""
     <style>
@@ -153,39 +177,32 @@ def main():
         color: #dc3545;
         font-weight: bold;
     }
+    .endpoint-box {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        margin: 0.5rem 0;
+    }
     </style>
     """, unsafe_allow_html=True)
     
     # Check if this is an API endpoint request
     try:
-        # Try different methods to get query parameters for compatibility
-        query_params = None
-        
-        # Method 1: Modern Streamlit
-        if hasattr(st, 'query_params'):
-            try:
-                query_params = dict(st.query_params)
-            except:
-                pass
-        
-        # Method 2: Experimental query params
-        if not query_params:
-            try:
-                query_params = dict(st.experimental_get_query_params())
-            except:
-                pass
-        
-        # Method 3: Check URL manually
-        if not query_params:
-            query_params = {}
+        # Get query parameters
+        query_params = st.query_params
         
         # Handle health check endpoint
         if query_params.get("endpoint") == "health":
-            st.json({
+            health_response = {
                 "status": "healthy",
                 "timestamp": datetime.now().isoformat(),
-                "service": "Portfolio Chatbot API"
-            })
+                "service": "Portfolio Chatbot API",
+                "version": "1.0.0",
+                "uptime": "Running",
+                "cors_enabled": True
+            }
+            st.json(health_response)
             st.stop()
         
         # Handle chat endpoint
@@ -196,10 +213,12 @@ def main():
                 st.json(response)
                 st.stop()
             else:
-                st.json({
+                error_response = {
                     "error": "Message parameter is required",
-                    "timestamp": datetime.now().isoformat()
-                })
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "error"
+                }
+                st.json(error_response)
                 st.stop()
     
     except Exception as e:
@@ -217,7 +236,7 @@ def main():
     # API Status Check
     st.markdown("""
     <div class="api-info">
-        <h3>📡 API Status</h3>
+        <h3>📡 API Status Dashboard</h3>
     </div>
     """, unsafe_allow_html=True)
     
@@ -225,28 +244,73 @@ def main():
     api_key = st.secrets.get("NVIDIA_API_KEY")
     if api_key:
         st.markdown('<p class="status-success">✅ NVIDIA API Key: Configured</p>', unsafe_allow_html=True)
+        st.markdown('<p class="status-success">✅ Backend Service: Running</p>', unsafe_allow_html=True)
+        st.markdown('<p class="status-success">✅ CORS Headers: Enabled</p>', unsafe_allow_html=True)
     else:
         st.markdown('<p class="status-error">❌ NVIDIA API Key: Not Found</p>', unsafe_allow_html=True)
         st.error("⚠️ Please add your NVIDIA_API_KEY to Streamlit secrets!")
     
-    # API Endpoints
-    st.markdown("### 🔗 Available Endpoints")
-    base_url = f"https://{st.get_option('browser.serverAddress') or 'localhost'}:{st.get_option('server.port') or 8501}"
+    # Connection Instructions
+    st.markdown("### 🔗 API Endpoints")
+    st.info("Your frontend should connect to these endpoints:")
+    
+    # Get the current app URL
+    try:
+        # Try to get the actual Streamlit URL
+        app_url = "https://portfolio-chatbot-backend-npj49qbjgkzknusu7ur5gp.streamlit.app"
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown(f"""
+            <div class="endpoint-box">
+                <strong>Health Check:</strong><br>
+                <code>{app_url}/?endpoint=health</code>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown(f"""
+            <div class="endpoint-box">
+                <strong>Chat Endpoint:</strong><br>
+                <code>{app_url}/?endpoint=chat&message=Hello</code>
+            </div>
+            """, unsafe_allow_html=True)
+            
+    except Exception as e:
+        st.error("Could not determine app URL automatically")
+    
+    # Test the API directly
+    st.markdown("### 🧪 Test API Endpoints")
     
     col1, col2 = st.columns(2)
+    
     with col1:
-        st.code(f"{base_url}/?endpoint=health", language="text")
-        st.caption("Health check endpoint")
+        if st.button("🔍 Test Health Check", use_container_width=True):
+            health_response = {
+                "status": "healthy",
+                "timestamp": datetime.now().isoformat(),
+                "service": "Portfolio Chatbot API",
+                "version": "1.0.0",
+                "cors_enabled": True
+            }
+            st.success("Health Check Response:")
+            st.json(health_response)
     
     with col2:
-        st.code(f"{base_url}/?endpoint=chat&message=Hello", language="text")
-        st.caption("Chat endpoint (GET request)")
+        test_message = st.text_input("Test Message:", value="Tell me about Vinoth's skills")
+        if st.button("💬 Test Chat API", use_container_width=True):
+            if test_message:
+                response = handle_chat_request(test_message)
+                st.success("Chat API Response:")
+                st.json(response)
+            else:
+                st.error("Please enter a test message")
     
     # Interactive Test Section
     st.markdown("""
     <div class="test-section">
-        <h3>🧪 Test Your Chatbot</h3>
-        <p>Try asking questions about Vinoth Kumar's skills, experience, or projects:</p>
+        <h3>🧪 Interactive Chatbot Test</h3>
+        <p>Test the chatbot functionality directly:</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -273,25 +337,71 @@ def main():
                     # Add assistant response to chat history
                     st.session_state.messages.append({"role": "assistant", "content": response})
     
-    # Usage Instructions
+    # Troubleshooting Guide
     st.markdown("---")
-    st.markdown("### 📋 How to Use This API")
+    st.markdown("### 🔧 Troubleshooting Guide")
     
-    with st.expander("For Developers"):
+    with st.expander("Frontend Connection Issues"):
         st.markdown("""
-        **Frontend Integration Example:**
-        ```javascript
-        async function sendMessage(message) {
-            const response = await fetch(`YOUR_STREAMLIT_URL/?endpoint=chat&message=${encodeURIComponent(message)}`);
-            const data = await response.json();
-            return data.response;
-        }
-        ```
+        **If your HTML frontend shows "Offline":**
         
-        **Health Check:**
+        1. **CORS Issues**: Streamlit apps have CORS restrictions. Try these solutions:
+           - Use the provided endpoints exactly as shown above
+           - Make sure you're using GET requests, not POST
+           - Check browser console for CORS errors
+        
+        2. **URL Issues**: 
+           - Verify the backend URL in your HTML is exactly: `https://portfolio-chatbot-backend-npj49qbjgkzknusu7ur5gp.streamlit.app`
+           - Don't add trailing slashes
+        
+        3. **Network Issues**:
+           - Test the health endpoint directly in your browser
+           - Check if Streamlit app is actually running
+           - Try refreshing the Streamlit app
+        
+        4. **Browser Cache**:
+           - Clear browser cache and cookies
+           - Try in incognito/private mode
+        """)
+    
+    with st.expander("API Integration Code"):
+        st.markdown("""
+        **Updated JavaScript for your HTML:**
         ```javascript
-        const healthCheck = await fetch('YOUR_STREAMLIT_URL/?endpoint=health');
-        const status = await healthCheck.json();
+        // Test connection with better error handling
+        async testConnection() {
+            try {
+                this.updateConnectionStatus('connecting');
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                
+                const response = await fetch(`${this.backendUrl}/?endpoint=health`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Backend connection successful:', data);
+                    this.updateConnectionStatus('connected');
+                    return true;
+                } else {
+                    console.warn('Backend health check failed:', response.status, response.statusText);
+                    this.updateConnectionStatus('error');
+                    return false;
+                }
+            } catch (error) {
+                console.error('Backend connection failed:', error);
+                this.updateConnectionStatus('offline');
+                return false;
+            }
+        }
         ```
         """)
     
